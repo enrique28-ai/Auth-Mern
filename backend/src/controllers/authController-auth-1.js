@@ -38,36 +38,58 @@ export const signup = async (req, res) => {
 }
 
 export const verifyEmail = async (req, res) => {
-    const {code} = req.body;
-    try {
-        const user = await User.findOne({
-            verificationToken: code,
-            verificationTokenExpiresAt: {$gt: Date.now()}
-        })
+  try {
+    const { code } = req.body;
 
-        if(!user){
-            return res.status(400).json({success: false, message: "Invalid or expired verification code"})
-        }
-
-        user.isVerified = true;
-        user.verificationToken = undefined;
-        user.verificationTokenExpiresAt = undefined;
-        await user.save();
-
-        await sendWelcomeEmail(user.email, user.name);
-        res.status(200).json({
-            success: true,
-            message: "Email verified successfully",
-            user: {
-                ...user._doc,
-                password: undefined
-            }
-        })
-    } catch (error) {
-        res.status(500).json({success: false, message:"Server error"})
-        console.error("Welcome email failed:", error);
+    // valida que sea un código de 6 dígitos
+    if (!/^\d{6}$/.test(String(code || ""))) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid verification code" });
     }
-}
+
+    // busca user por token válido (no expirado)
+    const user = await User.findOne({
+      verificationToken: code,
+      verificationTokenExpiresAt: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid or expired verification code" });
+    }
+
+    // marca verificado y limpia campos
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    user.verificationTokenExpiresAt = undefined;
+    await user.save();
+
+    // crea cookie de sesión (opcional pero común tras verificar)
+    generateTokenAndSetCookie(res, user._id);
+
+    // 📨 NO bloquees la respuesta por el correo
+    sendWelcomeEmail(user.email, user.name).catch((e) => {
+      console.error("Welcome email failed:", e);
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Email verified successfully",
+      user: {
+        _id: user._id,
+        email: user.email,
+        name: user.name,
+        isVerified: user.isVerified,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error("verifyEmail error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
 
 export const login = async (req, res) => {
     const {email, password} = req.body;

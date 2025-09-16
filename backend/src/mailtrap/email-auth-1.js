@@ -17,23 +17,34 @@ export const sendVerificationEmail = async (email, verificationToken) =>{
     }
 }
 
-export const sendWelcomeEmail = async(email, name) => {
-    const recipient =[{email}];
+export const sendWelcomeEmail = async (email, name = "") => {
+  const recipient = [{ email }];
+  try {
+    const uuid = process.env.MAILTRAP_WELCOME_TEMPLATE_UUID;
 
-    try {
-       const response = await mailTrapClient.send({
-            from: sender,
-            to: recipient,
-            template_uuid: "a3ca0fa7-0a92-48a4-a17b-6270e18e7b72",
-            template_variables: {
-                "name": name
-            }
-        });
+    const payload = uuid
+      ? {
+          from: sender,
+          to: recipient,
+          template_uuid: uuid,
+          template_variables: { name },
+        }
+      : {
+          from: sender,
+          to: recipient,
+          subject: "Welcome!",
+          category: "Welcome",
+          html: `<p>Welcome, <b>${name || "there"}</b> 🎉</p>`,
+        };
 
-    } catch (error) {
-        throw new Error(`Error sending welcome email: ${error}`)
-    }
-}
+    await mailTrapClient.send(payload);
+  } catch (e) {
+    // re-lanza con más contexto (lo capturamos más arriba o en logs)
+    const msg =
+      e?.response?.body || e?.response?.data || e?.message || String(e);
+    throw new Error(`Error sending welcome email: ${msg}`);
+  }
+};
 
 export const sendPasswordResetEmail = async(email, resetURL) => {
     const recipient = [{email}];
