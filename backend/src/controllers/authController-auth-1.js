@@ -65,6 +65,7 @@ export const verifyEmail = async (req, res) => {
         })
     } catch (error) {
         res.status(500).json({success: false, message:"Server error"})
+        console.error("Welcome email failed:", err);
     }
 }
 
